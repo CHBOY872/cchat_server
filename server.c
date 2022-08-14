@@ -155,7 +155,7 @@ int session_handle(struct session *sess)
     switch (sess->step)
     {
     case no_name_step:
-	set_name(sess, rc);
+        set_name(sess, rc);
         break;
     case run_step:
         break;
