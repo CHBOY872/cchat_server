@@ -22,14 +22,17 @@ int server_create(int port);
 int run(int fd_server);
 void close_server(struct session ***sess, int len);
 
+struct session *make_session(int fd);
+void end_session(struct session **sess);
+
 void accept_client(int server_fd, int *max_fd, struct session ***sess);
 
 void send_msg(int fd, const char *msg, int size);
 void send_all(struct session *except, struct session **sess,
               int count, const char *msg, int msg_len);
 
+void find_max_descriptor(struct session **sess, int *max_fd);
 void set_name(struct session *sess, const char *str, int str_len);
 void handle(struct session *sess, const char *msg,
             int str_len, struct session **sessions, int count);
-void end_session(struct session **sess);
-int session_handle(struct session *sess, struct session **sessions, int size);
+int session_handle(struct session **sess, struct session **sessions, int size);
