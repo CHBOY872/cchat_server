@@ -14,6 +14,8 @@
 #include "server.h"
 
 static char greetings_msg[] = "Welcome to the chat! Enter your name\n";
+static char name_change_msg[] = "usage: name <name> (note: only one space)"
+                                " between command and argument\n";
 
 void close_server(struct session ***sess, int len)
 {
@@ -61,6 +63,7 @@ struct session *make_session(int fd)
     sess->name = NULL;
     sess->step = no_name_step;
     sess->buf_used = 0;
+    memset(sess->buf, 0, BUFFERSIZE);
     return sess;
 }
 
@@ -78,22 +81,21 @@ void accept_client(int server_fd, int *max_fd, struct session ***sess)
     {
         if (*max_fd < client_fd)
             *max_fd = client_fd;
-        *sess = malloc(sizeof(struct session) * (*max_fd + 1));
+        *sess = malloc(sizeof(struct session *) * (*max_fd + 1));
         for (i = 0; i < *max_fd; i++)
             (*sess)[i] = NULL;
     }
     if (*max_fd < client_fd)
     {
-        struct session **sess_tmp =
-            malloc(sizeof(struct session) * (client_fd + 1));
+        struct session **sess_tmp = NULL;
+        sess_tmp =
+            malloc(sizeof(struct session *) * (client_fd + 1));
         for (i = 0; i <= client_fd; i++)
             sess_tmp[i] = i <= *max_fd ? (*sess)[i] : NULL;
         *max_fd = client_fd;
         free(*sess);
         *sess = sess_tmp;
     }
-    if (*max_fd < client_fd)
-        *max_fd = client_fd;
     (*sess)[client_fd] = make_session(client_fd);
     send_msg(client_fd, greetings_msg, sizeof(greetings_msg));
 }
@@ -156,7 +158,7 @@ void send_all(struct session *except, struct session **sess,
               int count, const char *msg, int msg_len)
 { /* send messages to all */
     int i;
-    for (i = 0; i <= count; i++)
+    for (i = 0; i < count; i++)
     {
         if (sess[i])
         { /* if address of session not equal to except sess address */
@@ -183,8 +185,11 @@ void handle(struct session *sess, const char *msg,
             int str_len, struct session **sessions, int count)
 {
     if (strstr(msg, "BLOCKME")) /* if msg contains BLOCKME */
+    {
+        memset(sess->buf, 0, sess->buf_used);
+        sess->buf_used = 0;
         return;
-
+    }
     int i, left_str_len;
     for (i = 0, left_str_len = str_len; i < str_len; i++, left_str_len--)
     { /* find first word in msg */
@@ -198,11 +203,15 @@ void handle(struct session *sess, const char *msg,
     {
         const char *ptr = msg + i + 1;
 
-        for (i = 0; i < left_str_len && *(ptr + i) && i != ' '; i++)
+        for (i = 0; i < left_str_len && *(ptr + i) && *(ptr + i) != ' '; i++)
             ; /* find second word */
 
         if (!i) /* there is not any word which would be a name */
+        {
+            send_msg(sess->fd, name_change_msg, sizeof(name_change_msg));
+            free(first_word);
             return;
+        }
 
         char *name = malloc(i + 1);
         memcpy(name, ptr, i + 1);
@@ -222,7 +231,7 @@ void handle(struct session *sess, const char *msg,
     send_all(sess, sessions, count, full_msg, full_msg_len);
     free(full_msg);
     free(first_word);
-    bzero(sess->buf, sess->buf_used);
+    memset(sess->buf, 0, sess->buf_used);
     sess->buf_used = 0;
 }
 
@@ -274,7 +283,8 @@ int session_handle(struct session **sess, struct session **sessions, int size)
 
     for (i = 0; i < rc; i++)
     {
-        if ((*sess)->buf[i + buf_used] == '\n' || (*sess)->buf[i + buf_used] == '\r')
+        if ((*sess)->buf[i + buf_used] == '\n' ||
+            (*sess)->buf[i + buf_used] == '\r')
             break;
     }
 
